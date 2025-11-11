@@ -100,36 +100,74 @@ def unix_to_readable(ts, fmt='%Y-%m-%d %H:%M:%S', tz='local', unit='s'):
 
 def find_timestamp_candidates(df):
     """
-    Simple name-based detection: return columns whose names match common timestamp keywords. Written by copilot
-    Returns {'columns': [colnames], 'index': index_name_or_None}
+    Simple name-based detection: return columns whose names match common timestamp keywords.
+    Returns list of candidate timestamp column names, we get every column names that has to do with time.
     """
 
     pattern = re.compile(
-    r'(?i)(?:^|(?<=[\W_-]))(?:time|timestamp|ts|date|datetime|start|end)(?:$|(?=[\W_-]))'
-    )
+    r'(?i)(?:^|(?<=[\W/_-]))(?:time|timestamp(?:\s*\[ns\])?|ts)(?:$|(?=[\W/_-]))'
+)
+
     cols = [col for col in df.columns if pattern.search(str(col))]
-    idx_name = df.index.name
-    index_candidate = idx_name if (idx_name and pattern.search(str(idx_name))) else None
-    return {'columns': cols, 'index': index_candidate}
+    
+    return cols
 
 
 """
 make function to combine files with different timestamps and filling up gaps with 0
 """
 
-def unix2readable_synchronizeData(*csv_paths):
+def synchronize_data(*csv_paths):
     """
     take 2 or more data (in csv form or pd) sync the data (start from the earliest data) add datapoints in the column the the later starting data, in empty spaces write null or something as a place holder
     """
-    dfs = []
+    dfs = {} #{"argorder" : pd series}, 
+    
+    #check if the passed arguments are strings or dfs, get a dfs only with the timestamps, right now only checking the index 2 element
+    if isinstance(csv_paths[0],str):
+        for i, path in enumerate(csv_paths):
+            df=pd.read_csv(path, sep=';')
+            time_column=find_timestamp_candidates(df) 
+            #we take the first one in the list as the timestamp of the recording.
+            time_column=time_column[0]
+            df=df[time_column]
+            dfs={'{i}':df}
+            
+    else:
+        for j, df in enumerate(csv_paths):
+            time_column=find_timestamp_candidates(df) 
+            time_column=time_column[0]
+            df=df[time_column]
+            dfs={'{j}':df}
+
+    print(dfs)
 
 
-    for i, item in enumerate(csv_paths):
-        df=pd.read_csv(item)
-        time_column=find_timestamp_candidates(df)
-        for column_name in column_name:
-            df[column_name] = unix_to_readable(df[column_name], unit='ns')
-        dfs.append(df)
+
+
+    """
+    1. check which one has the most datapoints (higher sampling frequency)
+    2. make that the timestamp of the combined df
+    3. make new timestamp if the denset timestamp doesnt have the earliest timestamps (padding)
+    4. insert data (padd additional points if data doesnt cover it)
+    5. outide of inserted data put null in where there is no data
+    """
+
+    length=len(dfs)
+
+
+eda_path="C:/Users/Susanto/Documents/Personal/Shimmer/shimmer-main/shimmer-main/export/eda2/Shimmer_A0F4-001_000.csv"
+ecg_path="C:/Users/Susanto/Documents/Personal/Shimmer/shimmer-main/shimmer-main/export/ecgtest4_1754555732/Shimmer_0000-000_000.csv"
+eyestates_path="C:/Users/Susanto/Documents/Personal/pupilLabs/pupilLabs-main/pupilLabs-main/export/2025-06-24-15-38-04/csv/3d_eye_states.csv"
+
+eda_df=pd.read_csv(eda_path, sep=';')
+ecg_df=pd.read_csv(ecg_path, sep=';')
+eyestates_df=pd.read_csv(eyestates_path, sep=';')
+
+synchronize_data(eda_path,ecg_path,eyestates_path)
+
+
+    
 
     
 
